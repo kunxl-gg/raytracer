@@ -1,41 +1,47 @@
-#include <GLFW/glfw3.h>
+#include <bits/stdc++.h>
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <iostream>
 #include <vector>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb_image_write.h>
-#include <glm.hpp>
+#include <stb/stb_image_write.h>
+#include <glm/gtc/type_ptr.hpp>  // For glm::value_ptr
+#include <glm/glm.hpp>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_opengl3.h>
 
-#include "../include/shader.hpp"
+#include <utils/shader.hpp>
 
-void processInput(GLFWwindow *window);
+void processInput(GLFWwindow *window, unsigned int fb1, unsigned int fb2,
+                  unsigned int &samples);
 void render(Shader &shader, float vertices[], unsigned int VAO,
             unsigned int vertLen, unsigned int samples);
 unsigned int createFramebuffer(unsigned int *texture);
 void saveImage(char *filepath, GLFWwindow *w);
 
 // settings
-unsigned int SCR_SIZE = 0;
-unsigned int SAMPLES = 0;
-char *PATH = NULL;
+unsigned int SCR_SIZE = 800;
+unsigned int SAMPLES = 6000;
+char *PATH = "../image.png";
 
 glm::vec3 cameraPos = glm::vec3(0, 0, 15);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 
-int main(int argc, char *argv[]) {
-  // Validate command line arguments
-  if (argc != 4) {
-    std::cout << "USAGE::raytracer <NUM_SAMPLES> <IMAGE_SIZE> <IMAGE_PATH>"
-              << std::endl;
-    return 1;
-  }
-#ifdef DEBUG_SINGLE
-  SAMPLES = 1e9;
-#else
-  SAMPLES = atoi(argv[1]);
-#endif
-  SCR_SIZE = atoi(argv[2]);
-  PATH = argv[3];
+glm::vec3 leftWallColor(1.0f, 1.0f, 0.0f);  // Default 
+int leftWallMaterial = 0;
+glm::vec3 rightWallColor(0.0f, 1.0f, 1.0f);  // Default
+int rightWallMaterial = 0;
+glm::vec3 backWallColor(0.5f, 0.5f, 0.5f);  // Default
+int backWallMaterial = 0;
+glm::vec3 upWallColor(0.5f, 0.5f, 0.5f);  // Default
+int upWallMaterial = 0;
+glm::vec3 cuboidColor(0.2f, 0.3f, 1.0f);
+int cuboidMaterial = 0;
+glm::vec3 pyramidColor(0.0f, 0.0f, 1.0f);
+int pyramidMaterial = 0;
+
+int main() {
 
   // glfw: initialize and configure
   // ------------------------------
@@ -45,7 +51,7 @@ int main(int argc, char *argv[]) {
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
   srand(time(NULL));
-#ifdef __APPLE__
+#ifdef _APPLE_
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
   // glfw window creation
@@ -63,18 +69,35 @@ int main(int argc, char *argv[]) {
   }
   glfwMakeContextCurrent(window);
 
+  GLFWwindow *imguiWindow = glfwCreateWindow(600, 600, "InGui Window", NULL, NULL);
+  if (imguiWindow == NULL) {
+    std::cout << "Failed to create ImGui window" << std::endl;
+    glfwTerminate();
+    return -1;
+  }
+
   // glad: load all OpenGL function pointers
   // ---------------------------------------
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cout << "Failed to initialize GLAD" << std::endl;
     return -1;
   }
+
+  // ImGui initialization
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO &io = ImGui::GetIO();
+  ImGui_ImplGlfw_InitForOpenGL(imguiWindow, true);
+  ImGui_ImplOpenGL3_Init("#version 330");
+
+  // ImGui::StyleColorsDark(); // Set ImGui style
+
   //
   // Build and compile our shader zprogram
   // Note: Paths to shader files should be relative to location of executable
-  Shader shader("../shaders/vert.glsl", "../shaders/frag.glsl");
-  Shader copyShader("../shaders/vert.glsl", "../shaders/copy.glsl");
-  Shader dispShader("../shaders/vert.glsl", "../shaders/disp.glsl");
+  Shader shader("shaders/vert.glsl", "shaders/frag.glsl");
+  Shader copyShader("shaders/vert.glsl", "shaders/copy.glsl");
+  Shader dispShader("shaders/vert.glsl", "shaders/disp.glsl");
 
   float vertices[] = {
       -1, -1, -1, +1, +1, +1, -1, -1, +1, +1, +1, -1,
@@ -109,10 +132,11 @@ int main(int argc, char *argv[]) {
   // Store start time
   double t0 = glfwGetTime();
   glDisable(GL_DEPTH_TEST);
-  while (!glfwWindowShouldClose(window) && samples <= SAMPLES) {
+  while (!glfwWindowShouldClose(window) && !glfwWindowShouldClose(imguiWindow)) {
+    glfwMakeContextCurrent(window);
     // input
     // -----
-    processInput(window);
+    processInput(window, fb1, fb2, samples);
 
     // Render pass on fb1
     glBindFramebuffer(GL_FRAMEBUFFER, fb1);
@@ -151,6 +175,98 @@ int main(int argc, char *argv[]) {
     // etc.)
     // -------------------------------------------------------------------------------
     glfwSwapBuffers(window);
+
+    // Render ImGui in the ImGui window
+    glfwMakeContextCurrent(imguiWindow);
+
+    // // Start ImGui frame
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    // ImGui window for controlling wall color and material
+    ImGui::Begin("Controls");
+    ImGui::Text("Control Panel");
+
+    // Collapsible section for Left Wall settings
+    if (ImGui::CollapsingHeader("Left Wall Settings")) {
+        ImGui::Text("Adjust Left Wall Color and Material");
+
+        // Input fields for color components
+        ImGui::InputFloat("Red", &leftWallColor.r);
+        ImGui::InputFloat("Green", &leftWallColor.g);
+        ImGui::InputFloat("Blue", &leftWallColor.b);
+        // Input field for the material type
+        ImGui::InputInt("Material Type", &leftWallMaterial);
+    }
+    // Collapsible section for Right Wall settings
+    if (ImGui::CollapsingHeader("Right Wall Settings")) {
+        ImGui::Text("Adjust Right Wall Color and Material");
+
+        // Input fields for color components
+        ImGui::InputFloat("Red", &rightWallColor.r);
+        ImGui::InputFloat("Green", &rightWallColor.g);
+        ImGui::InputFloat("Blue", &rightWallColor.b);
+        // Input field for the material type
+        ImGui::InputInt("Material Type", &rightWallMaterial);
+    }
+    // Collapsible section for Back Wall settings
+    if (ImGui::CollapsingHeader("Back Wall Settings")) {
+        ImGui::Text("Adjust Back Wall Color and Material");
+
+        // Input fields for color components
+        ImGui::InputFloat("Red", &backWallColor.r);
+        ImGui::InputFloat("Green", &backWallColor.g);
+        ImGui::InputFloat("Blue", &backWallColor.b);
+        // Input field for the material type
+        ImGui::InputInt("Material Type", &backWallMaterial);
+    }
+    // Collapsible section for Up Wall settings
+    if (ImGui::CollapsingHeader("Up Wall Settings")) {
+        ImGui::Text("Adjust Up Wall Color and Material");
+
+        // Input fields for color components
+        ImGui::InputFloat("Red", &upWallColor.r);
+        ImGui::InputFloat("Green", &upWallColor.g);
+        ImGui::InputFloat("Blue", &upWallColor.b);
+        // Input field for the material type
+        ImGui::InputInt("Material Type", &upWallMaterial);
+    }
+
+    // Collapsible section for Cuboid Wall settings
+    if (ImGui::CollapsingHeader("Cuboid Settings")) {
+        ImGui::Text("Adjust Cuboid Color and Material");
+
+        // Input fields for color components
+        ImGui::InputFloat("Red", &cuboidColor.r);
+        ImGui::InputFloat("Green", &cuboidColor.g);
+        ImGui::InputFloat("Blue", &cuboidColor.b);
+        // Input field for the material type
+        ImGui::InputInt("Material Type", &cuboidMaterial);
+    }
+
+    // Collapsible section for Pyramid Wall settings
+    if (ImGui::CollapsingHeader("Pyramid Settings")) {
+        ImGui::Text("Adjust Pyramid Color and Material");
+
+        // Input fields for color components
+        ImGui::InputFloat("Red", &pyramidColor.r);
+        ImGui::InputFloat("Green", &pyramidColor.g);
+        ImGui::InputFloat("Blue", &pyramidColor.b);
+        // Input field for the material type
+        ImGui::InputInt("Material Type", &pyramidMaterial);
+    }
+
+    // End the ImGui window
+    ImGui::End();
+
+    // Render ImGui
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    glfwSwapBuffers(imguiWindow);
+
+
     glfwPollEvents();
 
     std::cout << "Progress: " << samples << "/" << SAMPLES << " samples"
@@ -163,6 +279,11 @@ int main(int argc, char *argv[]) {
 
   std::cout << "INFO::Time taken: " << glfwGetTime() - t0 << "s" << std::endl;
 
+  // Cleanup ImGui
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
+
   // Deallocate all resources once they've outlived their purpose
   glDeleteVertexArrays(1, &VAO);
   glDeleteBuffers(1, &VBO);
@@ -173,22 +294,43 @@ int main(int argc, char *argv[]) {
 
   // glfw: terminate, clearing all previously allocated GLFW resources.
   // ------------------------------------------------------------------
+  glfwDestroyWindow(window);
+  glfwDestroyWindow(imguiWindow);
   glfwTerminate();
   return 0;
+}
+// Function to clear the contents of the framebuffers
+void clearFramebuffers(unsigned int fb1, unsigned int fb2) {
+    glBindFramebuffer(GL_FRAMEBUFFER, fb1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glBindFramebuffer(GL_FRAMEBUFFER, fb2);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind the default framebuffer
 }
 
 // process all input: query GLFW whether relevant keys are pressed/released this
 // frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
-void processInput(GLFWwindow* window) {
+void processInput(GLFWwindow* window, unsigned int fb1, unsigned int fb2, unsigned int& samples) {
     if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
     }
-
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         cameraPos += 0.05f * cameraFront;
     } else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         cameraPos -= 0.05f * cameraFront;
+    }
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        cameraPos += glm::normalize(glm::cross(cameraFront, glm::vec3(0.0f, 1.0f, 0.0f))) * 0.05f;
+    } else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        cameraPos -= glm::normalize(glm::cross(cameraFront, glm::vec3(0.0f, 1.0f, 0.0f))) * 0.05f;
+    }
+    
+    // Clear the framebuffers and reset samples count when 'S' or 'W' is pressed
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
+        glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        clearFramebuffers(fb1, fb2);
+        samples = 0; // Reset the sample count
     }
 }
 
@@ -204,6 +346,19 @@ void render(Shader &shader, float vertices[], unsigned int VAO,
 
   // Set uniforms
   unsigned int ID = shader.ID;
+  // Pass the wall color to the shader
+  shader.setVec3("leftWallColor", leftWallColor.r, leftWallColor.g, leftWallColor.b);
+  shader.setInt("leftWallMaterial", leftWallMaterial);
+  shader.setVec3("rightWallColor", rightWallColor.r, rightWallColor.g, rightWallColor.b);
+  shader.setInt("rightWallMaterial", rightWallMaterial);
+  shader.setVec3("backWallColor", backWallColor.r, backWallColor.g, backWallColor.b);
+  shader.setInt("backWallMaterial", backWallMaterial);
+  shader.setVec3("upWallColor", upWallColor.r, upWallColor.g, upWallColor.b);
+  shader.setInt("upWallMaterial", upWallMaterial);
+  shader.setVec3("cuboidColor", cuboidColor.r, cuboidColor.g, cuboidColor.b);
+  shader.setInt("cuboidMaterial", cuboidMaterial);
+  shader.setVec3("pyramidColor", pyramidColor.r, pyramidColor.g, pyramidColor.b);
+  shader.setInt("pyramidMaterial", pyramidMaterial);
 
   shader.setInt("prevFrame", 1);
 

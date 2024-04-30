@@ -88,23 +88,42 @@ struct BVHNode {
 };
 #endif
 
+// New uniform for the left wall color
+uniform vec3 leftWallColor;
+uniform int leftWallMaterial;
+
+uniform vec3 rightWallColor;
+uniform int rightWallMaterial;
+
+uniform vec3 backWallColor;
+uniform int backWallMaterial;
+
+uniform vec3 upWallColor;
+uniform int upWallMaterial;
+
 // Walls
 vec4[5] walls = vec4[5](vec4(0, 1, 0, 5), vec4(0, -1, 0, 5), vec4(1, 0, 0, 5),
                         vec4(-1, 0, 0, 5), vec4(0, 0, 1, 5));
 Material[5] wallsMat = Material[5](
     Material(checkerboard < 0 ? 0 : 3, 0.05, vec3(0.5, 0.5, 0.5), 0),
-    Material(0, 0.9, vec3(0.5, 0.5, 0.5), 0),
-    Material(0, 0.2, vec3(0.0, 1.0, 0.0), 0),
-    Material(0, 0.2, vec3(1.0, 0.0, 0.0), 0),
-    Material(0, 0.9, vec3(0.5, 0.5, 0.5), 0));
+    Material(upWallMaterial, 0.9, upWallColor, 0), // up
+    Material(leftWallMaterial, 0.2, leftWallColor, 0),
+    Material(rightWallMaterial, 0.2, rightWallColor, 0),
+    Material(backWallMaterial, 0.9, backWallColor, 0)); // back
 
 // Sphere
 Sphere sphere = Sphere(vec3(0, -3.7, 3), 1.3);
 Material sphereMat = Material(1, 0.1, vec3(1.0, 1.0, 1.0), 1.4);
 
+uniform vec3 cuboidColor;
+uniform int cuboidMaterial;
+
 // Cuboid
 Cuboid cuboid = Cuboid(vec3(-4, -5, -2), vec3(-1, 1, 1));
-Material cuboidMat = Material(0, 0.8, vec3(0.2, 0.3, 1.0), 0);
+Material cuboidMat = Material(cuboidMaterial, 0.8, cuboidColor, 0);
+
+uniform vec3 pyramidColor;
+uniform int pyramidMaterial;
 
 // Pyramid
 vec3 pyramidCenter = vec3(2.5, -5, -2);
@@ -128,7 +147,7 @@ Triangle[4] pyrTris =
 Rectangle pyrBase = Rectangle(
     vec4(-pyramidNorm, -dot(-pyramidNorm, pyramidCenter)), pyramidCenter,
     vec3(1, 0, 0), vec3(0, 0, 1), pyramidLength, pyramidLength);
-Material pyramidMat = Material(0, 0.01, vec3(0, 0, 1), 0);
+Material pyramidMat = Material(pyramidMaterial, 0.01, pyramidColor, 0);
 
 // Light
 Rectangle lightRect = Rectangle(vec4(0, -1, 0, 5 - eps), vec3(0, 5 - eps, 0),
