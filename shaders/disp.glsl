@@ -1,4 +1,4 @@
-#version 430
+#version 330
 
 // #define DEBUG_COLOR
 out vec4 fragColor;

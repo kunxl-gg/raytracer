@@ -7,7 +7,7 @@ A minimal GPU accelerated ray tracer written in OpenGL.
       src="./media/10k_samples.png"
       alt="10k Samples / 813 Seconds"
       style="width: 50%;"
-    >
+    >` 
   </div>
   <figcaption style="text-align:center">10k Samples / 813 Seconds</figcaption>
 </figure>

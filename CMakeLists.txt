@@ -38,6 +38,11 @@ set(STB_DIR "${LIB_DIR}/stb")
 include_directories(${STB_DIR})
 link_directories(${STB_DIR})
 
+#GLM
+set(GLM_DIR "${LIB_DIR}/glm")
+include_directories(${GLM_DIR})
+link_directories(${GLM_DIR})
+
 # ImGui
 # file(GLOB IMGUI_SOURCES ${LIB_DIR}/imgui/*.cpp)
 # add_library("imgui" STATIC "${IMGUI_SOURCES}" ${LIB_DIR}/imgui/imgui_impl_glfw.cpp)

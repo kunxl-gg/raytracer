@@ -1,4 +1,4 @@
-#version 430
+#version 330
 
 // #define DEBUG_ALBEDO
 // #define DEBUG_NORMALS
@@ -16,6 +16,8 @@ uniform sampler2D prevFrame;
 // Render settings
 uniform int numBounces;
 uniform int seedInit;
+
+uniform vec3 cameraPos;
 
 // Light properties
 uniform float intensity;
@@ -203,7 +205,7 @@ Ray genRay(vec2 rng) {
 
   vec2 xy = 2.0 * gl_FragCoord.xy / resolution - vec2(1.0);
 
-  ray.origin = vec3(0, 0, 15);
+  ray.origin = cameraPos;
   ray.dir = normalize(
       vec3(xy + rng.x * dFdx(xy) + rng.y * dFdy(xy), 15 - focalDistance) -
       // vec3(xy, 15 - focalDistance) -

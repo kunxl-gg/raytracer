@@ -4,6 +4,7 @@
 #include <vector>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
+#include <glm.hpp>
 
 #include "../include/shader.hpp"
 
@@ -17,6 +18,9 @@ void saveImage(char *filepath, GLFWwindow *w);
 unsigned int SCR_SIZE = 0;
 unsigned int SAMPLES = 0;
 char *PATH = NULL;
+
+glm::vec3 cameraPos = glm::vec3(0, 0, 15);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 
 int main(int argc, char *argv[]) {
   // Validate command line arguments
@@ -46,6 +50,10 @@ int main(int argc, char *argv[]) {
 #endif
   // glfw window creation
   // --------------------
+
+  GLFWmonitor *primaryMonitor = glfwGetPrimaryMonitor();
+  const GLFWvidmode *mode = glfwGetVideoMode(primaryMonitor);
+
   GLFWwindow *window =
       glfwCreateWindow(SCR_SIZE, SCR_SIZE, "Ray Tracer", NULL, NULL);
   if (window == NULL) {
@@ -172,10 +180,16 @@ int main(int argc, char *argv[]) {
 // process all input: query GLFW whether relevant keys are pressed/released this
 // frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
-void processInput(GLFWwindow *window) {
-  if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-    glfwSetWindowShouldClose(window, true);
-  }
+void processInput(GLFWwindow* window) {
+    if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, true);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        cameraPos += 0.05f * cameraFront;
+    } else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        cameraPos -= 0.05f * cameraFront;
+    }
 }
 
 void render(Shader &shader, float vertices[], unsigned int VAO,
@@ -203,6 +217,7 @@ void render(Shader &shader, float vertices[], unsigned int VAO,
 
   // Camera properties
   shader.setFloat("focalDistance", 2);
+  shader.setVec3("cameraPos", cameraPos.x, cameraPos.y, cameraPos.z);
   glUniform2f(glGetUniformLocation(ID, "resolution"), SCR_SIZE, SCR_SIZE);
 
   // Checkerboard
